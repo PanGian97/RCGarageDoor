@@ -1,0 +1,88 @@
+void setup() {
+  Serial.begin(4800);
+  mySwitch.enableReceive(1); // Receiver on interrupt 1 => that is pin #3
+ 
+    Serial.println("connected");
+ 
+    pinMode(5,OUTPUT); //relay that turn the motor ON. (open door)
+    pinMode(8,OUTPUT); //relay that turn the motor ON but reverse polarity. (close door)
+    pinMode(9,INPUT_PULLUP); //limit swich A pin.
+    pinMode(10,INPUT_PULLUP); //limit swich A pin.
+    pinMode(LED_TEST,OUTPUT); 
+    digitalWrite(5,LOW); //(Reverse command! HIGH means the relay is off and LOW means it is powered) Sets the relay in OFF-MODE.
+    digitalWrite(8,LOW);//(Reverse command! HIGH means the relay is off and LOW means it is powered)  Sets the relay in OFF-MODE.
+    digitalWrite(LED_TEST,LOW) ; //Led closed.  
+}
+
+void loop() {
+
+ limit_swich_A = digitalRead(9);
+ limit_swich_B = digitalRead(10);
+
+  
+if (limit_swich_A == HIGH){//door reached the open-maximum point. (limit switch A stops the motor) 
+  digitalWrite(5,LOW); //relay-open deactivated, so the door cant open more with opening command.
+  digitalWrite(LED_TEST,LOW); 
+  }
+
+  
+if (limit_swich_B == HIGH){//door is closed. (limit switch 2 stops the motor) 
+  digitalWrite(8,LOW); //relay-close deactivated, so the door cant open more with opening command.
+  digitalWrite(LED_TEST,LOW);
+  }
+
+
+
+  if (mySwitch.available())//if the recieve module catch any signal.
+  {
+    Serial.println("command recieved ");
+    
+    signal_value = mySwitch.getReceivedValue();//variable that storing the signal value.
+      delay(500);//added to to avoid repetitive buttons clicks.
+
+switch (signal_value) {
+    case 5526576 : case 11811844: // Decoded 433mhz signal codes from my 2 controllers,every controller have its own.(opening-button A)
+      open_close(limit_swich_A,5,8,LED_TEST);   //Executing function that runs the buttoms open-close commands.
+                                       
+    break;
+    
+    case 5526720 : case 11811848: // Closing (button B)
+       open_close(limit_swich_B,8,5,LED_TEST); //Executing function that runs the buttons open-close commands. 
+       break;
+       
+    default:  Serial.print("Unknown encoding ");//if the signal value is something else print this message on Serial monitor.    
+      break;
+  }
+
+  //recived values codes
+      Serial.print("Received ");
+      Serial.print( mySwitch.getReceivedValue() );
+      Serial.print(" / ");
+      Serial.print( mySwitch.getReceivedBitlength() );
+      Serial.print("bit ");
+      Serial.print("Protocol: ");
+      Serial.println( mySwitch.getReceivedProtocol() );
+  }
+ 
+    mySwitch.resetAvailable();// reset the signal value that catched before.
+ 
+}
+
+    void open_close(int limit_swich,int x,int x2,int xl){ // function that runs the buttons open-close commands.
+      
+      if (digitalRead(x2) == LOW )//Making sure that the other relay is not activated.
+          {
+            
+                if(limit_swich == LOW)//if the limit switch is off. (the door haven't reach the maximum allowed opening-closing position yet)
+                 {
+                  if (digitalRead(x) == LOW) {digitalWrite(x,HIGH); digitalWrite(xl,HIGH); } //if the relay is off, activate it and turn the Led indicator on.
+                  else digitalWrite(x,LOW); // if the relay is already on deactivate it.
+                  
+                  //*optional command for debugging purposes* Prints on serial monitor the state or the relay.
+                 if (digitalRead(x) == HIGH) Serial.print( "door moving..." ); //
+                 if (digitalRead(x) == LOW)  Serial.print( "door-stopped" );}
+                 // 
+           } 
+    }                                
+         
+ 
