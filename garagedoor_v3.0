@@ -1,0 +1,148 @@
+#include <RCSwitch.h>  //library to decode remote controller signal
+
+RCSwitch mySwitch = RCSwitch();
+
+const unsigned long CONTROLLER_1_OPEN = 5526576;
+const unsigned long CONTROLLER_1_CLOSE = 5526720;
+const unsigned long CONTROLLER_2_OPEN = 11811844;//unsigned cause it throws error by being the value unsupported be 16bit
+const unsigned long CONTROLLER_2_CLOSE = 11811848;
+
+const unsigned int MODULE_RELAY_ON = LOW;
+const unsigned int MODULE_RELAY_OFF = HIGH;
+
+const int relay_open_door = 5;
+const int relay_close_door = 8;
+const int relay_motor_power = 6;
+const int limit_switch_open=9;
+const int limit_switch_close=10;
+
+long signal_value = 0; //value of decoded number 
+
+
+
+void setup() {
+  Serial.begin(4800);
+  mySwitch.enableReceive(1); // Receiver on interrupt 1 => that is pin #3
+  Serial.println("connected");
+ 
+    pinMode(relay_open_door,OUTPUT); //relay that turn the motor ON. (open door)
+    pinMode(relay_close_door,OUTPUT); //relay that turn the motor ON but reverse polarity. (close door)
+    pinMode(relay_motor_power,OUTPUT);//relay that gives power to the motor
+    pinMode(limit_switch_open,INPUT_PULLUP); //limit swich A pin.
+    pinMode(limit_switch_close,INPUT_PULLUP); //limit swich B pin.
+
+    onStart();
+}
+
+void onStart(){
+    digitalWrite(relay_open_door,MODULE_RELAY_OFF); 
+    digitalWrite(relay_close_door,MODULE_RELAY_OFF);
+    digitalWrite(relay_motor_power,LOW); 
+  
+  }
+
+
+  
+void loop() {
+
+ if (mySwitch.available())//if the recieve module catch any signal.-recieve command
+ {  Serial.println("command recieved ");    
+    signal_value = mySwitch.getReceivedValue();//variable that storing the signal value.   
+    moveHandler(signal_value);
+     
+ }
+ limitSwitchHandler(); 
+  
+}
+void limitSwitchHandler(){
+            
+         if (digitalRead(limit_switch_open)==HIGH && digitalRead(relay_open_door)==MODULE_RELAY_ON)//door reached the open-maximum point. (limit switch A stops the motor)
+         { 
+          Serial.println("shuts offA ");
+            digitalWrite(relay_open_door,MODULE_RELAY_OFF); //relay-open deactivated, so the door cant open more with opening command.
+            digitalWrite(relay_motor_power,LOW);//close the power of the transformer that powers motor           
+             }
+             if (digitalRead(limit_switch_close)==HIGH && digitalRead(relay_close_door)==MODULE_RELAY_ON)//door reached the open-maximum point. (limit switch A stops the motor)
+         { 
+          Serial.println("shuts offB ");
+            digitalWrite(relay_close_door,MODULE_RELAY_OFF); //relay-open deactivated, so the door cant open more with opening command.
+            digitalWrite(relay_motor_power,LOW);//close the power of the transformer that powers motor           
+             }                             
+             delay(200);//needed because it kept the previous state for a longer period of time (*needs beter explanation)
+         
+          
+  }
+void moveHandler(long value){
+  
+  switch (value) {
+    case CONTROLLER_1_OPEN : case CONTROLLER_2_OPEN: // Decoded 433mhz signal codes from my 2 controllers,every controller have its own.(opening-button A)
+     openStopDoor();
+                                       
+    break;
+    
+    case CONTROLLER_1_CLOSE : case CONTROLLER_2_CLOSE: // Closing (button B)
+      closeStopDoor();
+       break;
+       
+    default:  Serial.print("Unknown encoding ");//if the signal value is something else print this message on Serial monitor.    
+      break;
+  }
+   //recived values codes
+      Serial.print("Received ");
+      Serial.print( mySwitch.getReceivedValue() );
+      Serial.print(" / ");
+      Serial.print( mySwitch.getReceivedBitlength() );
+      Serial.print("bit ");
+      Serial.print("Protocol: ");
+      Serial.println( mySwitch.getReceivedProtocol() );
+   
+    mySwitch.resetAvailable();// reset the signal value that catched before.
+  }
+
+void openStopDoor(){
+  if(digitalRead(limit_switch_open)==LOW && digitalRead(relay_close_door)==MODULE_RELAY_OFF)//check if the door hasnt reach max opening and the closing relay is off
+  { 
+    if(digitalRead(relay_open_door)==MODULE_RELAY_OFF) // if the door isnt moving 
+    {
+       digitalWrite(relay_motor_power,HIGH);
+       Serial.println("POWER READY TO ACTIVATE THE MOTOR ");   
+       delay(600); 
+       digitalWrite(relay_open_door,MODULE_RELAY_ON);
+        Serial.println("Door opening"); 
+        return; 
+    }
+    else if(digitalRead(relay_open_door)==MODULE_RELAY_ON)//if door is moving
+    {
+       digitalWrite(relay_motor_power,LOW);
+        Serial.println("POWER DEACTIVATED TO THE MOTOR ");  
+       delay(600); 
+       digitalWrite(relay_open_door,MODULE_RELAY_OFF);
+        Serial.println("Door stopped ");  
+        return;
+    }
+  }
+}
+
+void closeStopDoor(){
+  if(digitalRead(limit_switch_close)==LOW && digitalRead(relay_open_door)==MODULE_RELAY_OFF) //check if the door hasnt reach max opening and the closing relay is off
+  {
+    if(digitalRead(relay_close_door)==MODULE_RELAY_OFF) // if the door isnt moving 
+    {
+       digitalWrite(relay_motor_power,HIGH);
+        Serial.println("POWER READY TO ACTIVATE THE MOTOR ");   
+       delay(600); 
+       digitalWrite(relay_close_door,MODULE_RELAY_ON);
+       Serial.println("Door closing"); 
+       return;
+    }
+    else if(digitalRead(relay_close_door)==MODULE_RELAY_ON)//if door is moving
+    {
+       digitalWrite(relay_motor_power,LOW);
+         Serial.println("POWER DEACTIVATED TO THE MOTOR ");  
+       delay(600); 
+       digitalWrite(relay_close_door,MODULE_RELAY_OFF);
+       Serial.println("Door stopped "); 
+       return;
+    }
+  }
+}
